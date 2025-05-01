@@ -1,26 +1,18 @@
 // The Swift Programming Language
 // https://docs.swift.org/swift-book
 
-#if canImport(AppKit)
-import AppKit
-#endif
 import Combine
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
-public class AsyncPhoto: @unchecked Sendable {
-    
-    @State private var image: Image?
+class AsyncDownloader {
     
     private var cache = PhotoCache()
     
-    public static let shared = AsyncPhoto()
+    //public static let shared = AsyncDownloader()
     
-    private init() {}
+    //private init() {}
     
-    public func download(imageUrl: URL?) async throws -> some View {
+    func download(imageUrl: URL?) async throws -> Data {
         guard let url = imageUrl else {
             throw NSError(domain: "URL not found", code: 404)
         }
@@ -28,7 +20,7 @@ public class AsyncPhoto: @unchecked Sendable {
         let key = url.absoluteString
         
         if let cachedData = await cache.get(key: key) {
-            return imageView(data: cachedData)
+            return cachedData
         }
         
         let (data, httpResponse) = try await URLSession.shared.data(from: url)
@@ -41,38 +33,64 @@ public class AsyncPhoto: @unchecked Sendable {
             throw URLError(.init(rawValue: response.statusCode))
         }
         
-        await cache.set(data, key: key)
+        await cache.set(data, key: url.absoluteString)
         
-        return imageView(data: data)
+        return data
+    }
+}
+
+struct AsyncPhoto: View {
+    
+    @StateObject private var viewModel = ViewModel()
+    
+    @State private var image: Image?
+    
+    @State private var imageUrl: URL
+    
+    init(for url: URL) {
+        self.imageUrl = url
     }
     
-    @ViewBuilder
-    private func imageView(data: Data?) -> some View {
+    
+    var body: some View {
         Group {
             if let image = image {
                 image
                     .resizable()
                     .scaledToFit()
             } else {
-                ProgressView()
-                    .onAppear {
-                        if let data = data {
-#if os(macOS)
-                            if let nsImage = NSImage(data: data) {
-                                self.image = Image(nsImage: nsImage)
-                            } else {
-                                self.image = Image(systemName: "photo")
-                            }
-#else
-                            if let uiImage = UIImage(data: data) {
-                                self.image = Image(uiImage: uiImage)
-                            } else {
-                                self.image = Image(systemName: "photo")
-                            }
-#endif
-                        }
-                    }
+                if let data = viewModel.imageData {
+                    imageFromData(data)
+                }
             }
+        }
+        .task {
+            await viewModel.fetchImage(for: imageUrl)
+        }
+    }
+    
+    @ViewBuilder
+    func imageFromData(_ data: Data) -> some View {
+        if let cgImageSource = CGImageSourceCreateWithData(data as CFData, nil),
+           let cgImage = CGImageSourceCreateImageAtIndex(cgImageSource, 0, nil) {
+            Image(decorative: cgImage, scale: 1.0, orientation: .up)
+        } else {
+            Image(systemName: "photo")
+                .foregroundColor(.gray)
+        }
+    }
+}
+
+@MainActor
+class ViewModel: ObservableObject {
+    
+    @Published var imageData: Data?
+    
+    func fetchImage(for url: URL?) async {
+        do {
+            imageData = try await AsyncDownloader().download(imageUrl: url)
+        } catch {
+            debugPrint("URL not valid: \(url?.absoluteString ?? "")")
         }
     }
 }
