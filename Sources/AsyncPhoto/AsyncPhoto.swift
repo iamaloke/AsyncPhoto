@@ -16,7 +16,7 @@ public class AsyncPhoto: @unchecked Sendable {
     
     private var cache = PhotoCache()
     
-    static let shared = AsyncPhoto()
+    public static let shared = AsyncPhoto()
     
     private init() {}
     
