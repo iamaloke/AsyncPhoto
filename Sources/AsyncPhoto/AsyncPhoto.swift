@@ -3,17 +3,17 @@
 
 import SwiftUI
 
-struct AsyncPhoto: View {
+public struct AsyncPhoto: View {
     
     @StateObject private var viewModel: AsyncViewModel
     
     @State private var image: Image?
     
-    init(for url: URL?) {
+    public init(for url: URL?) {
         _viewModel = StateObject(wrappedValue: AsyncViewModel(imageUrl: url))
     }
     
-    var body: some View {
+    public var body: some View {
         Group {
             if let image = image {
                 
@@ -33,7 +33,7 @@ struct AsyncPhoto: View {
         }
     }
     
-    func imageFromData(_ data: Data) -> Image {
+    private func imageFromData(_ data: Data) -> Image {
         if let cgImageSource = CGImageSourceCreateWithData(data as CFData, nil),
            let cgImage = CGImageSourceCreateImageAtIndex(cgImageSource, 0, nil) {
             return Image(decorative: cgImage, scale: 1.0, orientation: .up)
